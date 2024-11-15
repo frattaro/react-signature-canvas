@@ -1,29 +1,37 @@
-import type SignaturePad from 'signature_pad'
+import { PointGroup } from "signature_pad";
 
-// signature_pad options
-const sigPadOptions = {
+import { SignatureCanvasProps } from "../src";
+
+export const props: SignatureCanvasProps = {
   velocityFilterWeight: 0.8,
   minWidth: 0.6,
   maxWidth: 2.6,
   minDistance: 4,
   dotSize: 2,
-  penColor: 'green',
+  penColor: "green",
   throttle: 17,
-  onEnd: () => { return 'onEnd' },
-  onBegin: () => { return 'onBegin' }
-}
-// props specific to React wrapper
-const rSCProps = {
   canvasProps: { width: 500, height: 500 },
-  clearOnResize: false
-}
-// should all be different from the defaults
-const props = { ...sigPadOptions, ...rSCProps }
-export const propsF = { sigPadOptions, all: props }
+  clearOnResize: false,
+  onEnd: () => {
+    return "onEnd";
+  },
+  onBegin: () => {
+    return "onBegin";
+  }
+};
 
-const dotData = [
-  [{ x: 466.59375, y: 189, time: 1564339579755, color: 'black' }]
-] as SignaturePad.Point[][]
-const canvasProps = { width: 1011, height: 326 }
-const trimmedSize = { width: 4, height: 4 }
-export const dotF = { data: dotData, canvasProps, trimmedSize }
+const dotData: PointGroup[] = [
+  {
+    points: [{ x: 466.59375, y: 189, time: 1564339579755, pressure: 12 }],
+    dotSize: 2,
+    minWidth: 0.6,
+    maxWidth: 2.6,
+    penColor: "green",
+    velocityFilterWeight: 0.8,
+    compositeOperation: "color"
+  }
+];
+
+const canvasProps = { width: 1011, height: 326 };
+const trimmedSize = { width: 5, height: 4 };
+export const dotF = { data: dotData, canvasProps, trimmedSize };

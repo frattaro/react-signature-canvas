@@ -1,173 +1,187 @@
-import PropTypes from 'prop-types'
-import React, { Component } from 'react'
-import SignaturePad from 'signature_pad'
-import trimCanvas from 'trim-canvas'
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef
+} from "react";
+import SignaturePad, { Options } from "signature_pad";
+import trimCanvas from "trim-canvas";
 
-export interface SignatureCanvasProps extends SignaturePad.SignaturePadOptions {
-  canvasProps?: React.CanvasHTMLAttributes<HTMLCanvasElement>
-  clearOnResize?: boolean
+import { useCombinedRefs } from "./useCombinedRefs";
+
+export interface SignatureCanvasProps extends Options {
+  canvasProps?: React.CanvasHTMLAttributes<HTMLCanvasElement>;
+  clearOnResize?: boolean;
+  onEnd?: () => void;
+  onBegin?: () => void;
+  onClear?: () => void;
 }
 
-export class SignatureCanvas extends Component<SignatureCanvasProps> {
-  static propTypes = {
-    // signature_pad's props
-    velocityFilterWeight: PropTypes.number,
-    minWidth: PropTypes.number,
-    maxWidth: PropTypes.number,
-    minDistance: PropTypes.number,
-    dotSize: PropTypes.oneOfType([PropTypes.number, PropTypes.func]),
-    penColor: PropTypes.string,
-    throttle: PropTypes.number,
-    onEnd: PropTypes.func,
-    onBegin: PropTypes.func,
-    // props specific to the React wrapper
-    canvasProps: PropTypes.object,
-    clearOnResize: PropTypes.bool
-  }
-
-  static defaultProps: Pick<SignatureCanvasProps, 'clearOnResize'> = {
-    clearOnResize: true
-  }
-
-  static refNullError = new Error('react-signature-canvas is currently ' +
-    'mounting or unmounting: React refs are null during this phase.')
-
-  // shortcut reference (https://stackoverflow.com/a/29244254/3431180)
-  private readonly staticThis = this.constructor as typeof SignatureCanvas
-
-  _sigPad: SignaturePad | null = null
-  _canvas: HTMLCanvasElement | null = null
-
-  private readonly setRef = (ref: HTMLCanvasElement | null): void => {
-    this._canvas = ref
-    // if component is unmounted, set internal references to null
-    if (this._canvas === null) {
-      this._sigPad = null
-    }
-  }
-
-  _excludeOurProps = (): SignaturePad.SignaturePadOptions => {
-    const { canvasProps, clearOnResize, ...sigPadProps } = this.props
-    return sigPadProps
-  }
-
-  override componentDidMount: Component['componentDidMount'] = () => {
-    const canvas = this.getCanvas()
-    this._sigPad = new SignaturePad(canvas, this._excludeOurProps())
-    this._resizeCanvas()
-    this.on()
-  }
-
-  override componentWillUnmount: Component['componentWillUnmount'] = () => {
-    this.off()
-  }
-
-  // propagate prop updates to SignaturePad
-  override componentDidUpdate: Component['componentDidUpdate'] = () => {
-    Object.assign(this._sigPad, this._excludeOurProps())
-  }
-
-  // return the canvas ref for operations like toDataURL
-  getCanvas = (): HTMLCanvasElement => {
-    if (this._canvas === null) {
-      throw this.staticThis.refNullError
-    }
-    return this._canvas
-  }
-
-  // return a trimmed copy of the canvas
-  getTrimmedCanvas = (): HTMLCanvasElement => {
-    // copy the canvas
-    const canvas = this.getCanvas()
-    const copy = document.createElement('canvas')
-    copy.width = canvas.width
-    copy.height = canvas.height
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    copy.getContext('2d')!.drawImage(canvas, 0, 0)
-    // then trim it
-    return trimCanvas(copy)
-  }
-
-  // return the internal SignaturePad reference
-  getSignaturePad = (): SignaturePad => {
-    if (this._sigPad === null) {
-      throw this.staticThis.refNullError
-    }
-    return this._sigPad
-  }
-
-  _checkClearOnResize = (): void => {
-    if (!this.props.clearOnResize) { // eslint-disable-line @typescript-eslint/strict-boolean-expressions -- this is backward compatible with the previous behavior, where null was treated as falsey
-      return
-    }
-    this._resizeCanvas()
-  }
-
-  _resizeCanvas = (): void => {
-    const canvasProps = this.props.canvasProps ?? {}
-    const { width, height } = canvasProps
-    // don't resize if the canvas has fixed width and height
-    if (typeof width !== 'undefined' && typeof height !== 'undefined') {
-      return
-    }
-
-    const canvas = this.getCanvas()
-    /* When zoomed out to less than 100%, for some very strange reason,
-      some browsers report devicePixelRatio as less than 1
-      and only part of the canvas is cleared then. */
-    const ratio = Math.max(window.devicePixelRatio ?? 1, 1)
-
-    if (typeof width === 'undefined') {
-      canvas.width = canvas.offsetWidth * ratio
-    }
-    if (typeof height === 'undefined') {
-      canvas.height = canvas.offsetHeight * ratio
-    }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    canvas.getContext('2d')!.scale(ratio, ratio)
-    this.clear()
-  }
-
-  override render: Component['render'] = () => {
-    const { canvasProps } = this.props
-    return <canvas ref={this.setRef} {...canvasProps} />
-  }
-
-  // all wrapper functions below render
-  //
-  on: SignaturePad['on'] = () => {
-    window.addEventListener('resize', this._checkClearOnResize)
-    return this.getSignaturePad().on()
-  }
-
-  off: SignaturePad['off'] = () => {
-    window.removeEventListener('resize', this._checkClearOnResize)
-    return this.getSignaturePad().off()
-  }
-
-  clear: SignaturePad['clear'] = () => {
-    return this.getSignaturePad().clear()
-  }
-
-  isEmpty: SignaturePad['isEmpty'] = () => {
-    return this.getSignaturePad().isEmpty()
-  }
-
-  fromDataURL: SignaturePad['fromDataURL'] = (dataURL, options) => {
-    return this.getSignaturePad().fromDataURL(dataURL, options)
-  }
-
-  toDataURL: SignaturePad['toDataURL'] = (type, encoderOptions) => {
-    return this.getSignaturePad().toDataURL(type, encoderOptions)
-  }
-
-  fromData: SignaturePad['fromData'] = (pointGroups) => {
-    return this.getSignaturePad().fromData(pointGroups)
-  }
-
-  toData: SignaturePad['toData'] = () => {
-    return this.getSignaturePad().toData()
-  }
+export interface SignatureCanvasHandle {
+  on: SignaturePad["on"];
+  off: SignaturePad["off"];
+  clear: SignaturePad["clear"];
+  isEmpty: SignaturePad["isEmpty"];
+  fromDataURL: SignaturePad["fromDataURL"];
+  toDataURL: SignaturePad["toDataURL"];
+  fromData: SignaturePad["fromData"];
+  toData: SignaturePad["toData"];
+  getHeight: () => number;
+  getTrimmedCanvas: () => HTMLCanvasElement | undefined;
+  getWidth: () => number;
 }
 
-export default SignatureCanvas
+const SignatureCanvas = forwardRef<
+  SignatureCanvasHandle | null,
+  SignatureCanvasProps
+>(
+  (
+    {
+      canvasProps,
+      clearOnResize = true,
+      onBegin,
+      onEnd,
+      onClear,
+      ...signaturePadProps
+    },
+    ref
+  ) => {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const sigPadRef = useRef<SignaturePad | null>(null);
+    const handleRef = useRef<SignatureCanvasHandle | null>(null);
+    const combinedRef = useCombinedRefs(ref, handleRef);
+
+    const resizeCanvas = useCallback(() => {
+      const { width, height } = canvasProps || {};
+      if (typeof width !== "undefined" && typeof height !== "undefined") {
+        return;
+      }
+
+      if (!canvasRef.current || !sigPadRef.current) return;
+
+      const data = sigPadRef.current.toData();
+
+      const ratio = Math.max(window.devicePixelRatio ?? 1, 1);
+
+      if (typeof width === "undefined") {
+        canvasRef.current.width = canvasRef.current.offsetWidth * ratio;
+      }
+
+      if (typeof height === "undefined") {
+        canvasRef.current.height = canvasRef.current.offsetHeight * ratio;
+      }
+
+      canvasRef.current.getContext("2d")!.scale(ratio, ratio);
+
+      if (clearOnResize) {
+        sigPadRef.current.clear();
+        onClear?.();
+      } else if (data) {
+        sigPadRef.current.fromData(data);
+        onEnd?.();
+      }
+
+      console.log(sigPadRef.current.toDataURL("image/svg+xml"));
+    }, [canvasRef, canvasProps, sigPadRef, clearOnResize]);
+
+    const checkClearOnResize = useCallback(() => {
+      resizeCanvas();
+    }, [clearOnResize, resizeCanvas]);
+
+    useImperativeHandle(
+      combinedRef,
+      () => ({
+        on: () => {
+          window.addEventListener("resize", checkClearOnResize);
+          return sigPadRef.current?.on();
+        },
+        off: () => {
+          window.removeEventListener("resize", checkClearOnResize);
+          return sigPadRef.current?.off();
+        },
+        clear: () => {
+          sigPadRef.current?.clear();
+          onClear?.();
+        },
+        isEmpty: () => {
+          return sigPadRef.current?.isEmpty() ?? true;
+        },
+        fromDataURL: (dataUrl, options) => {
+          return (
+            sigPadRef.current?.fromDataURL(dataUrl, options) ??
+            Promise.resolve()
+          );
+        },
+        toDataURL: (type, encoderOptions) => {
+          return sigPadRef.current?.toDataURL(type, encoderOptions) || "";
+        },
+        fromData: (pointGroups, options) => {
+          return sigPadRef.current?.fromData(pointGroups, options);
+        },
+        toData: () => {
+          return sigPadRef.current?.toData() ?? [];
+        },
+        getTrimmedCanvas: () => {
+          if (!canvasRef.current) return;
+
+          const copy = document.createElement("canvas");
+          copy.width = canvasRef.current.width;
+          copy.height = canvasRef.current.height;
+          copy.getContext("2d")!.drawImage(canvasRef.current, 0, 0);
+          return trimCanvas(copy);
+        },
+        getHeight: () => {
+          return canvasRef.current?.height ?? 0;
+        },
+        getWidth: () => {
+          return canvasRef.current?.width ?? 0;
+        }
+      }),
+      [sigPadRef.current, canvasRef.current]
+    );
+
+    useEffect(() => {
+      if (!canvasRef.current) return;
+      sigPadRef.current = new SignaturePad(
+        canvasRef.current,
+        signaturePadProps
+      );
+      if (onBegin) {
+        sigPadRef.current.addEventListener("beginStroke", onBegin);
+      }
+
+      if (onEnd) {
+        sigPadRef.current.addEventListener("endStroke", onEnd);
+      }
+
+      resizeCanvas();
+
+      window.addEventListener("resize", checkClearOnResize);
+      sigPadRef.current?.on();
+
+      return () => {
+        if (onBegin) {
+          sigPadRef.current?.removeEventListener("beginStroke", onBegin);
+        }
+
+        if (onEnd) {
+          sigPadRef.current?.removeEventListener("endStroke", onEnd);
+        }
+
+        window.removeEventListener("resize", checkClearOnResize);
+        sigPadRef.current?.off();
+      };
+    }, [
+      canvasRef.current,
+      sigPadRef.current,
+      signaturePadProps,
+      onBegin,
+      onEnd
+    ]);
+
+    return <canvas ref={canvasRef} {...canvasProps} />;
+  }
+);
+
+export default SignatureCanvas;

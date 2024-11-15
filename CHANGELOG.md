@@ -1,7 +1,10 @@
 # Changelog
 
-The changelog is currently hosted on [the GitHub Releases page](https://github.com/agilgur5/react-signature-canvas/releases).<br>
-It is currently mostly a summary and list of commits made before any tag.
-The commits in this library mostly follow a convention and tend to be quite detailed.
+See [README](https://github.com/frattaro/react-signature-canvas#readme) for more information.
 
-This project adheres to [Semantic Versioning](http://semver.org/).
+## 2.0.0
+
+_November 14, 2024_
+
+- Initial release. Convert to typescript, update tooling.
+
